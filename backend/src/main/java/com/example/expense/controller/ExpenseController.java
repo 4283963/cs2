@@ -40,6 +40,16 @@ public class ExpenseController {
         return ApiResponse.success(expenseService.auditExpense(request));
     }
 
+    @PostMapping("/delegate")
+    public ApiResponse<ExpenseResponse> delegateExpense(@Valid @RequestBody DelegateRequest request) {
+        return ApiResponse.success(expenseService.delegate(request));
+    }
+
+    @PostMapping("/delegate-confirm")
+    public ApiResponse<ExpenseResponse> delegateConfirm(@Valid @RequestBody DelegateConfirmRequest request) {
+        return ApiResponse.success(expenseService.delegateConfirm(request));
+    }
+
     @GetMapping("/{id}/audit-logs")
     public ApiResponse<List<AuditLogResponse>> getAuditLogs(@PathVariable Long id) {
         return ApiResponse.success(expenseService.getAuditLogsByExpenseId(id));

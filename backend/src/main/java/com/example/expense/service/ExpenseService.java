@@ -2,6 +2,8 @@ package com.example.expense.service;
 
 import com.example.expense.dto.AuditRequest;
 import com.example.expense.dto.AuditLogResponse;
+import com.example.expense.dto.DelegateConfirmRequest;
+import com.example.expense.dto.DelegateRequest;
 import com.example.expense.dto.ExpenseCreateRequest;
 import com.example.expense.dto.ExpenseResponse;
 import com.example.expense.entity.AuditLog;
@@ -71,6 +73,9 @@ public class ExpenseService {
         Expense expense = expenseRepository.findById(request.getExpenseId())
                 .orElseThrow(() -> new IllegalArgumentException("报销单不存在: " + request.getExpenseId()));
 
+        if (expense.getStatus() == ExpenseStatus.SIGNED_ADDING) {
+            throw new IllegalStateException("该报销单正在加签核账中，请等待加签经理确认");
+        }
         if (expense.getStatus() != ExpenseStatus.PENDING) {
             throw new IllegalStateException("该报销单已被审批，无法重复审批");
         }
@@ -102,5 +107,77 @@ public class ExpenseService {
                 .stream()
                 .map(AuditLogResponse::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public ExpenseResponse delegate(DelegateRequest request) {
+        Expense expense = expenseRepository.findById(request.getExpenseId())
+                .orElseThrow(() -> new IllegalArgumentException("报销单不存在: " + request.getExpenseId()));
+
+        if (expense.getStatus() == ExpenseStatus.SIGNED_ADDING) {
+            throw new IllegalStateException("该报销单已在加签中，无需重复加签");
+        }
+        if (expense.getStatus() != ExpenseStatus.PENDING) {
+            throw new IllegalStateException("只能对待审批的报销单发起加签");
+        }
+
+        expense.setStatus(ExpenseStatus.SIGNED_ADDING);
+        expense.setOriginalAuditor(request.getOriginalAuditor());
+        expense.setDelegatedAuditor(request.getDelegatedAuditor());
+
+        try {
+            Expense savedExpense = expenseRepository.save(expense);
+            entityManager.flush();
+            entityManager.lock(savedExpense, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+
+            AuditLog auditLog = AuditLog.builder()
+                    .expenseId(expense.getId())
+                    .auditor(request.getOriginalAuditor())
+                    .action(ExpenseStatus.SIGNED_ADDING)
+                    .comment("加签至 " + request.getDelegatedAuditor()
+                            + (request.getComment() != null ? "，原因：" + request.getComment() : ""))
+                    .build();
+            auditLogRepository.save(auditLog);
+            entityManager.flush();
+
+            return ExpenseResponse.fromEntity(savedExpense);
+        } catch (OptimisticLockException | OptimisticLockingFailureException e) {
+            throw new IllegalStateException("该报销单已被其他主管审批或加签，请刷新页面后重试");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public ExpenseResponse delegateConfirm(DelegateConfirmRequest request) {
+        Expense expense = expenseRepository.findById(request.getExpenseId())
+                .orElseThrow(() -> new IllegalArgumentException("报销单不存在: " + request.getExpenseId()));
+
+        if (expense.getStatus() != ExpenseStatus.SIGNED_ADDING) {
+            throw new IllegalStateException("该报销单当前不在加签状态");
+        }
+        if (!request.getDelegatedAuditor().equals(expense.getDelegatedAuditor())) {
+            throw new IllegalStateException("只有被加签人 [" + expense.getDelegatedAuditor() + "] 才能确认加签");
+        }
+
+        expense.setStatus(ExpenseStatus.PENDING);
+
+        try {
+            Expense savedExpense = expenseRepository.save(expense);
+            entityManager.flush();
+            entityManager.lock(savedExpense, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+
+            AuditLog auditLog = AuditLog.builder()
+                    .expenseId(expense.getId())
+                    .auditor(request.getDelegatedAuditor())
+                    .action(ExpenseStatus.PENDING)
+                    .comment("加签核账确认，退回原审批人 " + expense.getOriginalAuditor()
+                            + (request.getComment() != null ? "，意见：" + request.getComment() : ""))
+                    .build();
+            auditLogRepository.save(auditLog);
+            entityManager.flush();
+
+            return ExpenseResponse.fromEntity(savedExpense);
+        } catch (OptimisticLockException | OptimisticLockingFailureException e) {
+            throw new IllegalStateException("该报销单状态已变更，请刷新页面后重试");
+        }
     }
 }

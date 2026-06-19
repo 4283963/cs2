@@ -26,7 +26,9 @@ export const expenseApi = {
   get: (id) => request.get(`/expense/${id}`),
   create: (data) => request.post('/expense', data),
   audit: (data) => request.post('/expense/audit', data),
-  auditLogs: (id) => request.get(`/expense/${id}/audit-logs`)
+  auditLogs: (id) => request.get(`/expense/${id}/audit-logs`),
+  delegate: (data) => request.post('/expense/delegate', data),
+  delegateConfirm: (data) => request.post('/expense/delegate-confirm', data)
 }
 
 export default request

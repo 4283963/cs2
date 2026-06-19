@@ -37,6 +37,12 @@ public class Expense {
     @Column(nullable = false, length = 20)
     private ExpenseStatus status;
 
+    @Column(name = "original_auditor", length = 50)
+    private String originalAuditor;
+
+    @Column(name = "delegated_auditor", length = 50)
+    private String delegatedAuditor;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

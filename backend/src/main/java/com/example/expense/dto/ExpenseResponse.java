@@ -22,6 +22,8 @@ public class ExpenseResponse {
     private String description;
     private String applicant;
     private ExpenseStatus status;
+    private String originalAuditor;
+    private String delegatedAuditor;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -33,6 +35,8 @@ public class ExpenseResponse {
                 .description(expense.getDescription())
                 .applicant(expense.getApplicant())
                 .status(expense.getStatus())
+                .originalAuditor(expense.getOriginalAuditor())
+                .delegatedAuditor(expense.getDelegatedAuditor())
                 .createdAt(expense.getCreatedAt())
                 .updatedAt(expense.getUpdatedAt())
                 .build();

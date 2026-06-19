@@ -7,7 +7,8 @@ import dayjs from 'dayjs'
 const statusMap = {
   PENDING: { color: 'orange', text: '待审批' },
   APPROVED: { color: 'green', text: '已同意' },
-  REJECTED: { color: 'red', text: '已拒绝' }
+  REJECTED: { color: 'red', text: '已拒绝' },
+  SIGNED_ADDING: { color: 'purple', text: '加签中' }
 }
 
 function ExpenseList() {
@@ -90,7 +91,8 @@ function ExpenseList() {
               options={[
                 { value: 'PENDING', label: '待审批' },
                 { value: 'APPROVED', label: '已同意' },
-                { value: 'REJECTED', label: '已拒绝' }
+                { value: 'REJECTED', label: '已拒绝' },
+                { value: 'SIGNED_ADDING', label: '加签中' }
               ]}
             />
             <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
@@ -127,6 +129,12 @@ function ExpenseList() {
               <Descriptions.Item label="说明" span={2}>
                 {detailModal.record.description || '-'}
               </Descriptions.Item>
+              {detailModal.record.originalAuditor && (
+                <Descriptions.Item label="原审批人">{detailModal.record.originalAuditor}</Descriptions.Item>
+              )}
+              {detailModal.record.delegatedAuditor && (
+                <Descriptions.Item label="加签核账人">{detailModal.record.delegatedAuditor}</Descriptions.Item>
+              )}
               <Descriptions.Item label="提交时间" span={2}>
                 {dayjs(detailModal.record.createdAt).format('YYYY-MM-DD HH:mm:ss')}
               </Descriptions.Item>
