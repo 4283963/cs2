@@ -43,6 +43,10 @@ public class Expense {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

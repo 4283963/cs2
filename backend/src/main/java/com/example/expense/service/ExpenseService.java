@@ -9,7 +9,11 @@ import com.example.expense.entity.Expense;
 import com.example.expense.entity.ExpenseStatus;
 import com.example.expense.repository.AuditLogRepository;
 import com.example.expense.repository.ExpenseRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +26,7 @@ public class ExpenseService {
 
     private final ExpenseRepository expenseRepository;
     private final AuditLogRepository auditLogRepository;
+    private final EntityManager entityManager;
 
     @Transactional
     public ExpenseResponse createExpense(ExpenseCreateRequest request) {
@@ -57,7 +62,7 @@ public class ExpenseService {
         return ExpenseResponse.fromEntity(expense);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ExpenseResponse auditExpense(AuditRequest request) {
         if (request.getAction() != ExpenseStatus.APPROVED && request.getAction() != ExpenseStatus.REJECTED) {
             throw new IllegalArgumentException("审批动作不合法，只能是 APPROVED 或 REJECTED");
@@ -71,17 +76,25 @@ public class ExpenseService {
         }
 
         expense.setStatus(request.getAction());
-        Expense savedExpense = expenseRepository.save(expense);
 
-        AuditLog auditLog = AuditLog.builder()
-                .expenseId(expense.getId())
-                .auditor(request.getAuditor())
-                .action(request.getAction())
-                .comment(request.getComment())
-                .build();
-        auditLogRepository.save(auditLog);
+        try {
+            Expense savedExpense = expenseRepository.save(expense);
+            entityManager.flush();
+            entityManager.lock(savedExpense, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
 
-        return ExpenseResponse.fromEntity(savedExpense);
+            AuditLog auditLog = AuditLog.builder()
+                    .expenseId(expense.getId())
+                    .auditor(request.getAuditor())
+                    .action(request.getAction())
+                    .comment(request.getComment())
+                    .build();
+            auditLogRepository.save(auditLog);
+            entityManager.flush();
+
+            return ExpenseResponse.fromEntity(savedExpense);
+        } catch (OptimisticLockException | OptimisticLockingFailureException e) {
+            throw new IllegalStateException("该报销单已被其他主管审批，请刷新页面后重试");
+        }
     }
 
     public List<AuditLogResponse> getAuditLogsByExpenseId(Long expenseId) {
